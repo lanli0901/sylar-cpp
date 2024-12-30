@@ -99,3 +99,7 @@ dkms.conf
 *.exe
 *.out
 *.app
+
+# --------------User-defined-------------------
+*.json
+*.cmake

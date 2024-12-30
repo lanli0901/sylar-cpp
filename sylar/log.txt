@@ -1,0 +1,3 @@
+2024-12-17 20:45:58	INFO	test_macro
+2024-12-17 20:45:58	ERROR	test_macro_error
+2024-12-17 20:45:58	DEBUG	test macro fmt error aa
