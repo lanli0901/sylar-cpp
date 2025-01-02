@@ -33,11 +33,19 @@ set(LIB_SRC
     sylar/log.cc
     sylar/util.cc
     sylar/config.cc
+    sylar/thread.cc
     )
 
 # 使用上面定义的源文件 LIB_SRC，生成一个共享库 sylar。SHARED 指定生成的是一个动态链接库（共享库）。
 add_library(sylar SHARED ${LIB_SRC})
 force_redefine_file_macro_for_sources(sylar)    # 重定义__FILE__这个宏
+
+set(LIB_LIB
+    sylar
+    pthread
+    ${YAMLCPP}
+    )
+
 
 # 定义一个可执行文件 test，它的源文件为 tests/test.cc。
 # 确保在构建 test 可执行文件之前，先构建 sylar 库。即 test 依赖于 sylar 库。
@@ -45,12 +53,17 @@ force_redefine_file_macro_for_sources(sylar)    # 重定义__FILE__这个宏
 add_executable(test tests/test.cc)
 add_dependencies(test sylar)
 force_redefine_file_macro_for_sources(test)    # 重定义__FILE__这个宏
-target_link_libraries(test sylar ${YAMLCPP})
+target_link_libraries(test ${LIB_LIB})
 
 add_executable(test_config tests/test_config.cc)
 add_dependencies(test_config sylar)
 force_redefine_file_macro_for_sources(test_config)    # 重定义__FILE__这个宏
-target_link_libraries(test_config sylar ${YAMLCPP})
+target_link_libraries(test_config ${LIB_LIB})
+
+add_executable(test_thread tests/test_thread.cc)
+add_dependencies(test_thread sylar)
+force_redefine_file_macro_for_sources(test_thread)    # 重定义__FILE__这个宏
+target_link_libraries(test_thread ${LIB_LIB})
 
 # 设置所有可执行文件的输出目录为项目的 bin 目录。${PROJECT_SOURCE_DIR} 是指项目的根目录。
 # 设置所有库文件的输出目录为项目的 lib 目录。
