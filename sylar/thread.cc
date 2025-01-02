@@ -41,6 +41,7 @@ void *Thread::run(void *arg)
     pthread_setname_np(pthread_self(), thread->m_name.substr(0,15).c_str());
     std::function<void()> cb;
     cb.swap(thread->m_cb);
+    thread->m_semaphore.notify();
     cb();
     return 0;
 }
@@ -51,12 +52,14 @@ Thread::Thread(std::function<void()> cb, const std::string &name)
     if(name.empty()){
         m_name = "UNKNOW";
     }
+    // 不用c++11的进程创建方式的原因是：c++11锁不能读写分离。而c++17中的共享锁解决了这一点。
     int rt = pthread_create(&m_thread, nullptr, &Thread::run, this);
     // 线程创建成功，则返回0。若线程创建失败，则返回出错编号.
     if(rt){
         SYLAR_LOG_ERROR(g_logger) << "pthread_create thread fail, rt=" << rt << " name=" << name;
         throw std::logic_error("pthread_create error");
     }
+    m_semaphore.wait();
 }
 
 Thread::~Thread()
@@ -81,5 +84,30 @@ void Thread::join()
     }
 }
 
+Semaphore::Semaphore(uint32_t count)
+{
+    if(sem_init(&m_semaphore, 0, count)){
+        throw std::logic_error("sem_init error");
+    }
+}
+
+Semaphore::~Semaphore()
+{
+    sem_destroy(&m_semaphore);
+}
+
+void Semaphore::wait()
+{
+    if(sem_wait(&m_semaphore)){
+        throw std::logic_error("sem_wait error");
+    }
+}
+
+void Semaphore::notify()
+{
+    if(sem_post(&m_semaphore)){
+        throw std::logic_error("sem_post error");
+    }
+}
 
 }
