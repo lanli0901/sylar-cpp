@@ -46,7 +46,7 @@ int main(){
         thrs[i]->join();
     }
     SYLAR_LOG_INFO(g_logger) << "thread test end";
-
     SYLAR_LOG_INFO(g_logger) << "count=" << count;
+
     return 0;
 }

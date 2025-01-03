@@ -7,7 +7,6 @@
 #include <iostream>
 #include <map>
 #include <boost/lexical_cast.hpp>
-#include "log.h"
 #include <yaml-cpp/yaml.h>
 #include <vector>
 #include <list>
@@ -16,6 +15,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+
+#include "thread.h"
+#include "log.h"
 
 namespace sylar{
 
@@ -257,6 +259,7 @@ public:
     // 用来封装任何可调用的目标（如普通函数、成员函数、函数对象、lambda 表达式等）。
     // 它提供了一个统一的接口，使得可以将这些不同的可调用对象作为参数传递或存储。
     typedef std::function<void (const T& old_value, const T& new_value)> on_change_cb;
+    typedef RWMutex RWMutexType;
 
     ConfigVar (const std::string& name, const T& default_value, const std::string& description = "")
         : ConfigVarBase(name, description), m_val(default_value) {}
@@ -264,6 +267,7 @@ public:
     std::string toString() override{
         try{
             // return boost::lexical_cast<std::string>(m_val);  // boost::lexical_cast 是类型转换工具
+            RWMutexType::ReadLock lock(m_mutex);
             return ToStr()(m_val);
         }catch(std::exception& e){
             // e.what() 返回发生异常时的错误信息
@@ -286,37 +290,53 @@ public:
         return false;
     }
 
-    const T getValue() const { return m_val;}
+    const T getValue(){ 
+        RWMutexType::ReadLock lock(m_mutex);
+        return m_val;
+    }
+
     void setValue(const T& v) { 
         // m_val = v;
-        if(v == m_val){
-            return;
+        {   // 加括号是为了产生局部域
+            RWMutexType::ReadLock lock(m_mutex);
+            if(v == m_val){
+                return;
+            }
+            for(auto& i : m_cbs){
+                i.second(m_val, v);
+            }
         }
-        for(auto& i : m_cbs){
-            i.second(m_val, v);
-        }
+        RWMutexType::WriteLock lock(m_mutex);
         m_val = v;
     }
 
     std::string getTypeName() const override { return typeid(T).name();}
 
-    void addListener(uint64_t key, on_change_cb cb){
-        m_cbs[key] = cb;
+    uint64_t addListener(on_change_cb cb){
+        static uint64_t s_fun_id = 0;
+        RWMutexType::WriteLock lock(m_mutex);
+        ++s_fun_id;
+        m_cbs[s_fun_id] = cb;
+        return s_fun_id;
     }
 
     void delListener(uint64_t key){
+        RWMutexType::WriteLock lock(m_mutex);
         m_cbs.erase(key);
     }
 
     on_change_cb getListener(uint64_t key){
+        RWMutexType::ReadLock lock(m_mutex);
         auto it = m_cbs.find(key);
         return it == m_cbs.end() ? nullptr : it->second;
     }
 
     void clearListener() {
+        RWMutexType::WriteLock lock(m_mutex);
         m_cbs.clear();
     }
 private:
+    RWMutexType m_mutex;
     T m_val;
     // function函数没有比较函数，所以用map封装
     // 变更回调函数组, uint64_t key要求唯一，一般可以用hash
@@ -326,6 +346,7 @@ private:
 class Config{
 public:
     typedef std::map<std::string, ConfigVarBase::ptr> ConfigVarMap;
+    typedef RWMutex RWMutexType;
 
     template<class T>
     // typename 关键字在这里的作用是明确声明 ConfigVar<T>::ptr 是一个类型，而不是一个变量、函数或其他对象。
@@ -336,6 +357,7 @@ public:
         //     SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << "Lookup name= " << name << " exists";
         //     return tmp;
         // }     
+        RWMutexType::WriteLock lock(GetMutex());
         auto it = GetDatas().find(name);
         if(it != GetDatas().end()){
             auto tmp = std::dynamic_pointer_cast<ConfigVar<T>> (it->second);
@@ -363,6 +385,7 @@ public:
 
     template<class T>
     static typename ConfigVar<T>::ptr Lookup(const std::string& name){
+        RWMutexType::ReadLock lock(GetMutex());
         auto it = GetDatas().find(name);
         if(it == GetDatas().end()) {
             return nullptr;
@@ -372,13 +395,18 @@ public:
     }
 
     static void LoadFromYaml(const YAML::Node& root);
-
     static ConfigVarBase::ptr LookupBase(const std::string& name);
+    static void Visit(std::function<void(ConfigVarBase::ptr)> cb);
 
 private:
     static ConfigVarMap& GetDatas(){
         static ConfigVarMap s_datas;
         return s_datas;
+    }
+
+    static RWMutexType& GetMutex(){
+        static RWMutexType s_mutex;
+        return s_mutex;
     }
 };
 
