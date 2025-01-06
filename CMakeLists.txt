@@ -65,6 +65,11 @@ add_dependencies(test_thread sylar)
 force_redefine_file_macro_for_sources(test_thread)    # 重定义__FILE__这个宏
 target_link_libraries(test_thread ${LIB_LIB})
 
+add_executable(test_util tests/test_util.cc)
+add_dependencies(test_util sylar)
+force_redefine_file_macro_for_sources(test_util)    # 重定义__FILE__这个宏
+target_link_libraries(test_util ${LIB_LIB})
+
 # 设置所有可执行文件的输出目录为项目的 bin 目录。${PROJECT_SOURCE_DIR} 是指项目的根目录。
 # 设置所有库文件的输出目录为项目的 lib 目录。
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
