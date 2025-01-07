@@ -71,6 +71,8 @@ Fiber::Fiber(std::function<void()> cb, size_t stacksize)
     m_ctx.uc_stack.ss_size = m_stacksize;
     // 指定协程执行的函数（MainFunc）和参数
     makecontext(&m_ctx, &Fiber::MainFunc, 0);
+
+    SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber id=" << m_id;
 }
 
 Fiber::~Fiber()
@@ -89,6 +91,8 @@ Fiber::~Fiber()
             SetThis(nullptr);
         }
     }
+
+    SYLAR_LOG_DEBUG(g_logger) << "Fiber::~Fiber id=" << m_id;
 }
 
 // 重置协程函数，并重置状态，（INIT, TERM可重置）
@@ -185,6 +189,10 @@ void Fiber::MainFunc()
         cur->m_state = EXCEPT;
         SYLAR_LOG_ERROR(g_logger) << "Fiber Except";
     }
+
+    auto raw_ptr = cur.get();
+    cur.reset();
+    raw_ptr->swapOut();
 }
 
 }

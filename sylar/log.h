@@ -17,7 +17,7 @@
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
         sylar::LogEventWrap(sylar::LogEvent::ptr(new sylar::LogEvent(logger, level, __FILE__, __LINE__, \
-        0, sylar::GetThreadID(), sylar::GetFiberID(), time(0)))).getSS()
+        0, sylar::GetThreadID(), sylar::GetFiberID(), time(0), sylar::Thread::GetName()))).getSS()
 
 #define SYLAR_LOG_DEBUG(logger) SYLAR_LOG_LEVEL(logger, sylar::LogLevel::DEBUG)
 #define SYLAR_LOG_INFO(logger) SYLAR_LOG_LEVEL(logger, sylar::LogLevel::INFO)
@@ -28,7 +28,7 @@
 #define SYLAR_LOG_FMT_LEVEL(logger, level, fmt, ...) \
     if(logger->getLevel() <= level) \
         sylar::LogEventWrap(sylar::LogEvent::ptr(new sylar::LogEvent(logger, level, __FILE__, __LINE__, \
-        0, sylar::GetThreadID(), sylar::GetFiberID(), time(0)))).getEvent()->format(fmt, __VA_ARGS__)
+        0, sylar::GetThreadID(), sylar::GetFiberID(), time(0), sylar::Thread::GetName()))).getEvent()->format(fmt, __VA_ARGS__)
 
 #define SYLAR_LOG_FMT_DEBUG(logger, fmt, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::DEBUG, fmt, __VA_ARGS__)
 #define SYLAR_LOG_FMT_INFO(logger, fmt, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::INFO, fmt, __VA_ARGS__)
@@ -65,7 +65,8 @@ class LogEvent{
 public:
     typedef std::shared_ptr<LogEvent> ptr;
     LogEvent(std::shared_ptr<Logger>, LogLevel::Level level, const char* file, int32_t line, 
-            uint32_t elapse, uint32_t thread_id, uint32_t fiber_id, uint64_t time);
+            uint32_t elapse, uint32_t thread_id, uint32_t fiber_id, uint64_t time, 
+            const std::string& thread_name);
 
     const char* getFile() const { return m_file;}
     int32_t getLine() const { return m_line;}
@@ -73,6 +74,7 @@ public:
     uint32_t getThreadId() const { return m_threadID;}
     uint32_t getFiberId() const { return m_fiberID;}
     uint64_t getTime() const { return m_time;}
+    const std::string& getThreadName() const { return m_threadName;}
     std::string getContent() const { return m_ss.str();}
     std::shared_ptr<Logger> getLogger() const { return m_logger;}
     LogLevel::Level getLevel() const { return m_level;}
@@ -87,6 +89,7 @@ private:
     uint32_t m_threadID = 0;        //线程id
     uint32_t m_fiberID = 0;         //协程id
     uint64_t m_time = 0;            //时间戳
+    std::string m_threadName;       //线程名称
     std::stringstream m_ss;         //消息体的流
     
     std::shared_ptr<Logger> m_logger;
