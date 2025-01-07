@@ -1,5 +1,6 @@
 #include "util.h"
 #include "log.h"
+#include "fiber.h"
 #include <execinfo.h>  // ::backtrace 头文件
 
 namespace sylar{
@@ -12,7 +13,7 @@ pid_t GetThreadID(){
 
 uint32_t GetFiberID()
 {
-    return 0;
+    return sylar::Fiber::GetFiberID();
 }
 
 void Backtrace(std::vector<std::string> &bt, int size, int skip)

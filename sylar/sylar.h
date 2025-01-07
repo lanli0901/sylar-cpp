@@ -4,6 +4,7 @@
 // 如果头文件经常变，这种方式回让所有 #include "sylar.h" 的文件都重新编译
 #include "macro.h"
 #include "config.h"
+#include "fiber.h"
 #include "log.h"
 #include "singleton.h"
 #include "util.h"

@@ -30,9 +30,10 @@ message("***", ${YAMLCPP})
 
 # 定义一个变量 LIB_SRC，其中包含了所有要编译为库的源文件路径
 set(LIB_SRC
+    sylar/config.cc
+    sylar/fiber.cc
     sylar/log.cc
     sylar/util.cc
-    sylar/config.cc
     sylar/thread.cc
     )
 
@@ -69,6 +70,11 @@ add_executable(test_util tests/test_util.cc)
 add_dependencies(test_util sylar)
 force_redefine_file_macro_for_sources(test_util)    # 重定义__FILE__这个宏
 target_link_libraries(test_util ${LIB_LIB})
+
+add_executable(test_fiber tests/test_fiber.cc)
+add_dependencies(test_fiber sylar)
+force_redefine_file_macro_for_sources(test_fiber)    # 重定义__FILE__这个宏
+target_link_libraries(test_fiber ${LIB_LIB})
 
 # 设置所有可执行文件的输出目录为项目的 bin 目录。${PROJECT_SOURCE_DIR} 是指项目的根目录。
 # 设置所有库文件的输出目录为项目的 lib 目录。
