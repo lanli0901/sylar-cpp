@@ -11,8 +11,8 @@ static Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 static std::atomic<u_int64_t> s_fiber_id(0);
 static std::atomic<u_int64_t> s_fiber_count(0);
 
-static thread_local Fiber* t_fiber = nullptr;   // 每个线程都有一个独立的 t_fiber 变量。
-static thread_local Fiber::ptr t_threadFiber = nullptr;
+static thread_local Fiber* t_fiber = nullptr;   // 当前协程
+static thread_local Fiber::ptr t_threadFiber = nullptr;     // 主协程
 
 static ConfigVar<uint32_t>::ptr g_fiber_stack_size = 
     Config::Lookup<uint32_t>("fiber.stack_size", 1024*1024, "fiber stack size");
@@ -32,7 +32,6 @@ public:
 // c++11引入， 等于：typedef MallocStackAllocator StackAllocator;
 // using 新类型名 = 原类型名;
 using StackAllocator = MallocStackAllocator;
-
 
 uint64_t Fiber::GetFiberID()
 {
