@@ -36,6 +36,7 @@ public:
     void swapOut();
 
     uint64_t getId() const { return m_id;}
+    State getState() const { return m_state;}
 
 public:
     // 设置当前协程

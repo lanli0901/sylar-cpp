@@ -54,6 +54,10 @@ public:
 
 protected:
     virtual void tickle();
+    void run();
+    virtual bool stopping();
+
+    void setThis();
 
 private:
     template<class FiberOrCb>
@@ -105,9 +109,19 @@ private:
 
 private:
     MutexType m_mutex;
-    std::vector<Thread::ptr> m_threads;
-    std::list<FiberAndThread> m_fibers;
-    std::string m_name;
+    std::vector<Thread::ptr> m_threads;     // 线程池
+    std::list<FiberAndThread> m_fibers;     // 待执行的协程队列
+    Fiber::ptr m_rootFiber;                 // use_caller为true时有效, 调度协程
+    std::string m_name;                     // 协程调度器名称
+
+protected:
+    std::vector<int> m_threadIds;           // 协程下的线程id数组
+    size_t m_threadCount = 0;               // 线程数量
+    size_t m_activeThreadCount = 0;         // 工作线程数量
+    size_t m_idleThreadCount = 0;           // 空闲线程数量
+    bool m_stopping = true;                 // 是否正在停止
+    bool m_autoStop = false;                // 是否自动停止
+    int m_rootThread = 0;                   // 主线程id（use_caller）
 };
 
 
