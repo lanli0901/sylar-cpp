@@ -2,6 +2,8 @@
 #define __SYLAR_SCHEDULER_H__
 
 #include <memory>
+#include <vector>
+#include <list>
 #include "mutex.h"
 #include "fiber.h"
 #include "thread.h"
@@ -48,7 +50,7 @@ public:
             }
         }
         if(need_tickle){
-            tickle;
+            tickle();
         }
     }
 
@@ -56,6 +58,7 @@ protected:
     virtual void tickle();
     void run();
     virtual bool stopping();
+    virtual void idle();
 
     void setThis();
 
@@ -115,13 +118,13 @@ private:
     std::string m_name;                     // 协程调度器名称
 
 protected:
-    std::vector<int> m_threadIds;           // 协程下的线程id数组
-    size_t m_threadCount = 0;               // 线程数量
-    size_t m_activeThreadCount = 0;         // 工作线程数量
-    size_t m_idleThreadCount = 0;           // 空闲线程数量
-    bool m_stopping = true;                 // 是否正在停止
-    bool m_autoStop = false;                // 是否自动停止
-    int m_rootThread = 0;                   // 主线程id（use_caller）
+    std::vector<int> m_threadIds;                          // 协程下的线程id数组
+    size_t m_threadCount = 0;                              // 线程数量
+    std::atomic<size_t> m_activeThreadCount = {0};         // 工作线程数量
+    std::atomic<size_t> m_idleThreadCount = {0};           // 空闲线程数量
+    bool m_stopping = true;                                // 是否正在停止
+    bool m_autoStop = false;                               // 是否自动停止
+    int m_rootThread = 0;                                  // 主线程id（use_caller）
 };
 
 

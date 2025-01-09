@@ -8,6 +8,7 @@
 #include "log.h"
 #include "singleton.h"
 #include "util.h"
+#include "scheduler.h"
 #include "thread.h"
 
 #endif
