@@ -13,7 +13,7 @@ static std::atomic<u_int64_t> s_fiber_id(0);
 static std::atomic<u_int64_t> s_fiber_count(0);
 
 static thread_local Fiber* t_fiber = nullptr;   // 当前协程
-static thread_local Fiber::ptr t_threadFiber = nullptr;     // 主协程
+static thread_local Fiber::ptr t_threadFiber = nullptr;     // 主协程（默认构造函数创建）
 
 static ConfigVar<uint32_t>::ptr g_fiber_stack_size = 
     Config::Lookup<uint32_t>("fiber.stack_size", 1024*1024, "fiber stack size");
