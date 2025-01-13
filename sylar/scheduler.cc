@@ -21,7 +21,7 @@ Scheduler::Scheduler(size_t threads, bool use_caller, const std::string &name)
         t_scheduler = this;
 
         // std::bind(&Scheduler::run, this) 返回一个std::function ，等价于 this->run()
-        m_rootFiber.reset(new Fiber(std::bind(&Scheduler::run, this)));
+        m_rootFiber.reset(new Fiber(std::bind(&Scheduler::run, this), 0, true));
         sylar::Thread::SetName(m_name);
 
         t_fiber = m_rootFiber.get();
@@ -71,7 +71,7 @@ void Scheduler::start()
     if(m_rootFiber){
         // m_rootFiber->swapIn();
         m_rootFiber->call();
-        SYLAR_LOG_INFO(g_logger) << "call out" << m_rootFiber->getState();
+        SYLAR_LOG_INFO(g_logger) << "call out " << m_rootFiber->getState();
     }
 }
 
@@ -148,6 +148,7 @@ void Scheduler::run()
 
                 ft = *it;
                 m_fibers.erase(it);
+                break;
             }
         }
 
@@ -195,6 +196,7 @@ void Scheduler::run()
         else{
             if(idle_fiber->getState() == Fiber::TERM){
                 SYLAR_LOG_INFO(g_logger) << "idle fiber term";
+                // continue;
                 break;
             }
             ++m_idleThreadCount;
