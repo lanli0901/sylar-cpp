@@ -26,6 +26,11 @@ private:
             Fiber::ptr fiber;                   // 事件协程
             std::function<void()> cb;           // 事件的回调函数
         };
+
+        EventContext& getcontext(Event event);
+        void resetContext(EventContext& ctx);
+        void triggerEvent(Event event);
+
         EventContext read;          // 读事件
         EventContext write;         // 写事件
         int fd;                     // 事件关联的句柄
@@ -37,12 +42,12 @@ public:
     IOManager(size_t threads = 1, bool use_caller = true, const std::string& name = "");
     ~IOManager();
 
-    // 1 success, 0 retry, -1 error
+    // 0 success, -1 error
     int addEvent(int fd, Event event, std::function<void()> cb = nullptr);
     bool delEvent(int fd, Event event);
     bool cancelEvent(int fd, Event event);
 
-    bool cancelEvent(int fd);
+    bool cancelAll(int fd);
 
     static IOManager* GetThis();
 
