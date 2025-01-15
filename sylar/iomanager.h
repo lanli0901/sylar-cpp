@@ -12,8 +12,8 @@ public:
 
     enum Event{
         NONE        = 0x0,
-        READ        = 0x1,
-        WRITE       = 0x2,
+        READ        = 0x1,      // EPOLLIN
+        WRITE       = 0x4,      // EPOLLOUT
     };
 
 private:
@@ -27,14 +27,14 @@ private:
             std::function<void()> cb;           // 事件的回调函数
         };
 
-        EventContext& getcontext(Event event);
-        void resetContext(EventContext& ctx);
-        void triggerEvent(Event event);
+        EventContext& getcontext(Event event);      // 获取事件上下文类
+        void resetContext(EventContext& ctx);       // 重置事件上下文
+        void triggerEvent(Event event);             // 触发事件
 
         EventContext read;          // 读事件
         EventContext write;         // 写事件
-        int fd;                     // 事件关联的句柄
-        Event events = NONE;      // 已经注册的事件
+        int fd = 0;                 // 事件关联的句柄
+        Event events = NONE;        // 已经注册的事件
         MutexType mutex;
     };
     
@@ -60,7 +60,7 @@ protected:
 
 private:
     int m_epfd = 0;
-    int m_tickleFds[2];
+    int m_tickleFds[2];     // 1写0读
 
     std::atomic<size_t> m_pendingEventCount = {0};
     RWMutexType m_mutex;

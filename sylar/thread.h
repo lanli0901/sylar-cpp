@@ -8,6 +8,7 @@
 #include <semaphore.h>
 #include <stdint.h>
 #include <atomic>
+#include <iostream>
 
 // pthread_xxx
 // std::thread, pthread

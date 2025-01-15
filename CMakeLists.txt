@@ -33,6 +33,7 @@ set(LIB_SRC
     sylar/config.cc
     sylar/fiber.cc
     sylar/log.cc
+    sylar/iomanager.cc
     sylar/scheduler.cc
     sylar/util.cc
     sylar/thread.cc
@@ -81,6 +82,11 @@ add_executable(test_scheduler tests/test_scheduler.cc)
 add_dependencies(test_scheduler sylar)
 force_redefine_file_macro_for_sources(test_scheduler)    # 重定义__FILE__这个宏
 target_link_libraries(test_scheduler ${LIB_LIB})
+
+add_executable(test_iomanager tests/test_iomanager.cc)
+add_dependencies(test_iomanager sylar)
+force_redefine_file_macro_for_sources(test_iomanager)    # 重定义__FILE__这个宏
+target_link_libraries(test_iomanager ${LIB_LIB})
 
 # 设置所有可执行文件的输出目录为项目的 bin 目录。${PROJECT_SOURCE_DIR} 是指项目的根目录。
 # 设置所有库文件的输出目录为项目的 lib 目录。

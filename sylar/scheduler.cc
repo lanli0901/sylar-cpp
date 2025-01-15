@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "log.h"
 #include "macro.h"
+#include <iostream>
 
 namespace sylar{
 
@@ -45,6 +46,7 @@ Scheduler::~Scheduler()
 
 Scheduler *Scheduler::GetThis()
 {
+    // std::cout << "Scheduler::GetThis" << std::endl;
     return t_scheduler;
 }
 
@@ -228,6 +230,7 @@ void Scheduler::run()
             if(idle_fiber->getState() == Fiber::TERM){
                 SYLAR_LOG_INFO(g_logger) << "idle fiber term";
                 // continue;
+                tickle();
                 break;
             }
             ++m_idleThreadCount;
