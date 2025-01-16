@@ -37,6 +37,7 @@ set(LIB_SRC
     sylar/scheduler.cc
     sylar/util.cc
     sylar/thread.cc
+    sylar/timer.cc
     )
 
 # 使用上面定义的源文件 LIB_SRC，生成一个共享库 sylar。SHARED 指定生成的是一个动态链接库（共享库）。
