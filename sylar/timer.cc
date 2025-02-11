@@ -106,6 +106,7 @@ Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool re
 }
 
 static void onTimer(std::weak_ptr<void> weak_cond, std::function<void()> cb){
+    // 如果 weak_ptr 指向的对象依然存在（即该对象的引用计数大于 0），lock() 返回一个有效的 shared_ptr，否则返回一个空的 shared_ptr。
     std::shared_ptr<void> tmp = weak_cond.lock();
     if(tmp){
         cb();

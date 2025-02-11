@@ -44,12 +44,15 @@ public:
     ~IOManager();
 
     // 0 success, -1 error
+    // 添加事件
     int addEvent(int fd, Event event, std::function<void()> cb = nullptr);
+    // 删除事件
     bool delEvent(int fd, Event event);
+    // 取消事件
     bool cancelEvent(int fd, Event event);
-
+    // 取消所有事件
     bool cancelAll(int fd);
-
+    // 返回当前的IOManager
     static IOManager* GetThis();
 
 protected:
@@ -57,17 +60,18 @@ protected:
     bool stopping() override;
     void idle() override;
     void onTimerInsertedAtFront() override;
-
+    // 重置socket句柄上下文的容器大小
     void contextResize(size_t size);
+    // 判断是否可以停止
     bool stopping(uint64_t& timeout);
 
 private:
-    int m_epfd = 0;
-    int m_tickleFds[2];     // 1写0读
+    int m_epfd = 0;         // epoll 文件句柄
+    int m_tickleFds[2];     // pipe 文件句柄  1写0读
 
-    std::atomic<size_t> m_pendingEventCount = {0};
+    std::atomic<size_t> m_pendingEventCount = {0};      // 当前等待执行的事件数量
     RWMutexType m_mutex;
-    std::vector<FdContext*> m_fdContexts;
+    std::vector<FdContext*> m_fdContexts;               // socket事件上下文的容器
 };
 
 
