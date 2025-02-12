@@ -34,8 +34,8 @@ private:
     // 冒号后的数字 1 (位域) 指定了 m_isInit 成员仅占用 1 位 的内存空间，而不是通常的 1 字节（8 位）
     bool m_isInit: 1;       // 是否初始化
     bool m_isSocket: 1;     // 是否socket
-    bool m_sysNonblock: 1;  // 是否hook非阻塞
-    bool m_userNonblock: 1; // 是否用户主动设置非阻塞
+    bool m_sysNonblock: 1;  // 是否hook非阻塞（系统态）
+    bool m_userNonblock: 1; // 是否用户主动设置非阻塞(用户态)
     bool m_isClosed: 1;     // 是否关闭
     int m_fd;
     uint64_t m_recvTimeout;     // 读超时时间毫秒
