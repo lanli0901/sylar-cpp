@@ -31,6 +31,7 @@ message("***", ${YAMLCPP})
 # 定义一个变量 LIB_SRC，其中包含了所有要编译为库的源文件路径
 set(LIB_SRC
     sylar/config.cc
+    sylar/fd_manager.cc
     sylar/fiber.cc
     sylar/hook.cc
     sylar/log.cc
