@@ -10,21 +10,20 @@
 #include <atomic>
 #include <iostream>
 
+#include "noncopyable.h"
+
 // pthread_xxx
 // std::thread, pthread
 namespace sylar{
 
-class Semaphore{
+// 默认继承方式为private（基类的公有成员和保护成员都作为派生类的私有成员，并且不能被这个派生类的子类所访问。）
+class Semaphore : Noncopyable{
 public:
     Semaphore(uint32_t count = 0);
     ~Semaphore();
 
     void wait();
     void notify();
-private:
-    Semaphore(const Semaphore&) = delete;
-    Semaphore(const Semaphore&&) = delete;
-    Semaphore& operator= (const Semaphore&) = delete;
 private:
     sem_t m_semaphore;
 };
@@ -125,7 +124,7 @@ private:
     bool m_locked;
 };
 
-class Mutex{
+class Mutex : Noncopyable{
 public:
     typedef ScopeLockImpl<Mutex> Lock;
     Mutex(){
@@ -145,7 +144,7 @@ private:
 };
 
 // 空锁，什么都不干，仅用于测试Mutex锁的功能是否有效
-class NullMutex{
+class NullMutex : Noncopyable{
 public:
     typedef ScopeLockImpl<NullMutex> Lock;
     NullMutex(){}
@@ -154,7 +153,7 @@ public:
     void unlock(){}
 };
 
-class RWMutex{
+class RWMutex : Noncopyable{
 public:
     typedef ReadScopeLockImpl<RWMutex> ReadLock;
     typedef WriteScopeLockImpl<RWMutex> WriteLock;
@@ -178,7 +177,7 @@ private:
 };
 
 // 空锁，什么都不干，仅用于测试RWMutex锁的功能是否有效
-class NullRWMutex{
+class NullRWMutex : Noncopyable{ 
 public:
     typedef ReadScopeLockImpl<NullRWMutex> ReadLock;
     typedef WriteScopeLockImpl<NullRWMutex> WriteLock;
@@ -191,7 +190,7 @@ public:
 
 // 轻量级的锁实现方式----自旋锁
 // 与传统的阻塞锁不同，自旋锁在获取锁时不会主动阻塞线程，而是通过循环不断地尝试获取锁，直到成功获取为止
-class Spinlock{
+class Spinlock : Noncopyable{
 public:
     typedef ScopeLockImpl<Spinlock> Lock;
     Spinlock(){
@@ -210,7 +209,7 @@ private:
     pthread_spinlock_t m_mutex;
 };
 
-class CASLock{
+class CASLock : Noncopyable{
 public:
     typedef ScopeLockImpl<CASLock> Lock;
     CASLock(){
@@ -229,7 +228,7 @@ private:
     volatile std::atomic_flag m_mutex;
 };
 
-class Thread{
+class Thread : Noncopyable{
 public:
     typedef std::shared_ptr<Thread> ptr;
     Thread(std::function<void()> cb, const std::string& name);
@@ -245,11 +244,6 @@ public:
     static void SetName(const std::string& name);
 
 private:
-    // delete关键字，禁止赋值和拷贝
-    Thread(const Thread&) = delete;
-    Thread(const Thread&&) = delete;
-    Thread& operator=(const Thread&) = delete;
-
     static void* run(void* arg);
 private:
     pid_t m_id = -1;     // 线程id

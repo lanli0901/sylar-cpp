@@ -3,11 +3,15 @@
 #include "iomanager.h"
 #include "fd_manager.h"
 #include "log.h"
+#include "config.h"
 #include <dlfcn.h>
 
 sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
 namespace sylar{
+
+static sylar::ConfigVar<int>::ptr g_tcp_connect_timeout = 
+    sylar::Config::Lookup("tcp.connect.timeout", 5000, "tcp connect timeout");
 
 static thread_local bool t_hook_enable = false;
 
@@ -47,10 +51,16 @@ void hook_init(){
 #undef XX
 }
 
+static uint64_t s_connect_timeout = -1;
 struct _HookIniter
 {
     _HookIniter(){
         hook_init();
+        s_connect_timeout = g_tcp_connect_timeout->getValue();
+        g_tcp_connect_timeout->addListener([](const int& old_value, const int& new_value){
+            SYLAR_LOG_INFO(g_logger) << "tcp connect timeout changed from " << old_value << " to " << new_value;
+            s_connect_timeout = new_value;
+        });
     }
 };
 
@@ -87,6 +97,8 @@ static ssize_t do_io(int fd, OriginFun fun, const char* hook_fun_name,
         return fun(fd, std::forward<Args>(args)...);
     }
 
+    SYLAR_LOG_DEBUG(g_logger) << "do_io<" << hook_fun_name << ">";
+
     sylar::Fdctx::ptr ctx = sylar::FdMgr::GetInstance()->get(fd);
     // 句柄不存在
     if(!ctx){
@@ -115,6 +127,7 @@ retry:
     }
     // 做异步操作
     if(n == -1 && errno == EAGAIN){
+        SYLAR_LOG_DEBUG(g_logger) << "do_io<" << hook_fun_name << ">";
         sylar::IOManager* iom = sylar::IOManager::GetThis();
         sylar::Timer::ptr timer;
         std::weak_ptr<timer_info> winfo(tinfo);     // 条件定时器的条件
@@ -165,6 +178,7 @@ extern "C"{
     HOOK_FUN(XX)
 #undef XX
 
+//sleep函数用于让进程休眠指定的秒数，适用于需要较长时间的休眠场景；
 unsigned int sleep(unsigned int seconds){
     if(!sylar::t_hook_enable){
         return sleep_f(seconds);
@@ -181,6 +195,7 @@ unsigned int sleep(unsigned int seconds){
     return 0;
 };
 
+//usleep函数用于让进程休眠指定的微秒数，适用于需要较短时间的休眠场景，不精确；
 int usleep(useconds_t usec){
     if(!sylar::t_hook_enable){
             return usleep_f(usec);
@@ -197,6 +212,7 @@ int usleep(useconds_t usec){
     return 0;
 };
 
+//nanosleep函数用于让进程休眠指定的纳秒数，适用于需要纳秒级的休眠场景，不精确（因为这种级别会因为系统调度和其他因素而有所不同）；
 int nanosleep(const struct timespec *reg, struct timespec *rem){
     if(!sylar::t_hook_enable){
         return nanosleep_f(reg, rem);
@@ -213,6 +229,7 @@ int nanosleep(const struct timespec *reg, struct timespec *rem){
     return 0;
 }
 
+//该函数用来创建一个套接字，并返回一个描述符，该描述符可以用来访问该套接字
 int socket(int domain, int type, int protocol){
     if(!sylar::t_hook_enable){
         return socket_f(domain, type, protocol);
@@ -225,6 +242,7 @@ int socket(int domain, int type, int protocol){
     return fd;
 }
 
+//链接超时设置
 int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen, uint64_t timeout_ms){
     if(!sylar::t_hook_enable){
         return connect_f(fd, addr, addrlen);
@@ -234,13 +252,13 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
         errno = EBADF;
         return -1;
     }
+    std::cout<<"ctx->isSocket() " << ctx->isSocket() << "  ctx->getUserNonblock() " << ctx->getUserNonblock()<<std::endl;
     if(!ctx->isSocket()){
         return connect_f(fd, addr, addrlen);
     }
     if(ctx->getUserNonblock()){
         return connect_f(fd, addr, addrlen);
     }
-
     int n = connect_f(fd, addr, addrlen);
     if(n == 0){
         return 0;
@@ -248,12 +266,12 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
     else if(n != -1 || errno != EINPROGRESS){
         return n;
     }
-
     sylar::IOManager* iom = sylar::IOManager::GetThis();
     sylar::Timer::ptr timer;
     std::shared_ptr<timer_info> tinfo(new timer_info);
     std::weak_ptr<timer_info> winfo(tinfo);
 
+    // 如果超时参数有效，则添加一个条件定时器，在定时时间到后通过t->cancelled设置超时标志并触发一次WRITE事件。
     if(timeout_ms != (uint64_t)-1){
         timer = iom->addConditionTimer(timeout_ms, [winfo, fd, iom](){
             auto t = winfo.lock();
@@ -265,6 +283,7 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
         }, winfo);
     }
 
+    // 添加WRITE事件并yield，等待WRITE事件触发再往下执行
     int rt = iom->addEvent(fd, sylar::IOManager::WRITE);
     if(rt == 0){
         // 从YieldToHold出来 要么超时 要么连接成功
@@ -272,6 +291,7 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
         if(timer){
             timer->cancel();
         }
+        // 超时
         if(tinfo->cancelled){
             errno = tinfo->cancelled;
             return -1;
@@ -299,13 +319,16 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
     }
 }
 
+//该系统调用用来让客户程序通过在一个未命名套接字和服务器监听套接字之间建立连接的方法来连接到服务器
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
-
-
-
-    return connect_f(sockfd, addr, addrlen);
+    return connect_with_timeout(sockfd, addr, addrlen, sylar::s_connect_timeout);
 }
 
+//该系统调用用来等待客户建立对该套接字的连接。
+//accept系统调用只有当客户程序试图连接到由socket参数指定的套接字上时才返回，
+//也就是说，如果套接字队列中没有未处理的连接，accept将阻塞直到有客户建立连接为止。
+//accept函数将创建一个新套接字来与该客户进行通信，并且返回新套接字的描述符，
+//新套接字的类型和服务器监听套接字类型是一样的。
 int accept(int s, struct sockaddr *addr, socklen_t *addrlen){
     int fd = do_io(s, accept_f, "accept", sylar::IOManager::READ, SO_RCVTIMEO, addr, addrlen);
     if(fd >= 0){
@@ -314,48 +337,66 @@ int accept(int s, struct sockaddr *addr, socklen_t *addrlen){
     return fd;
 }
 
+//从文件描述符（包括TCP Socket）中读取数据，并将读取的数据存储到指定的缓冲区中。
 ssize_t read(int fd, void *buf, size_t count){
     return do_io(fd, read_f, "read", sylar::IOManager::READ, SO_RCVTIMEO, buf, count);
 }
 
+//主要用于文件I/O操作，从文件描述符读取数据到多个缓冲区中
 ssize_t readv(int fd, const struct iovec *iov, int iovcnt){
     return do_io(fd, readv_f, "readv", sylar::IOManager::READ, SO_RCVTIMEO, iov, iovcnt);
 }
 
+//用于从套接字接收数据，并提供了额外的Flags参数来控制特殊行为
 ssize_t recv(int sockfd, void *buf, size_t len, int flags){
     return do_io(sockfd, recv_f, "recv", sylar::IOManager::READ, SO_RCVTIMEO, buf, len, flags);
 }
 
+//用于接收来自套接字（socket）的数据，并且适用于面向无连接的协议，如 UDP（用户数据报协议）。
+//recvfrom 允许程序接收数据同时获取数据发送方的地址信息。
 ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
     struct sockaddr *src_addr, socklen_t *addrlen){
     return do_io(sockfd, recvfrom_f, "recvfrom", sylar::IOManager::READ, SO_RCVTIMEO, buf, len, flags, src_addr, addrlen);
 }
 
+//提供了更为复杂和灵活的功能，支持分散/聚集I/O和更多的控制选项
 ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags){
     return do_io(sockfd, recvmsg_f, "recvmsg", sylar::IOManager::READ, SO_RCVTIMEO, msg, flags);
 }
 
+//用于向任意文件描述符中写入(读取)数据，用作socket发送数据时，只能向已经建立连接的文件描述符中写入(读取)数据
 ssize_t write(int fd, const void *buf, size_t count){
     return do_io(fd, write_f, "write", sylar::IOManager::WRITE, SO_SNDTIMEO, buf, count);
 }
 
+//向任意文件描述符中写入多个缓冲区的数据，readv用于从任意描述符中向多个缓冲区读取数据，
+//用作socket发送数据时，只能向已经建立连接的文件描述符中写入(读取)数据
 ssize_t writev(int fd, const struct iovec *iov, int iovcnt){
     return do_io(fd, writev_f, "writev", sylar::IOManager::WRITE, SO_SNDTIMEO, iov, iovcnt);
 }
 
+//用于向socket中写入(读取)数据，只能用于已经建立连接的socket上，udp也可以调用connect建立连接
 ssize_t send(int sockfd, const void *buf, size_t len, int flags){
     return do_io(sockfd, send_f, "send", sylar::IOManager::WRITE, SO_SNDTIMEO, buf, len, flags);
 }
 
+//用于向socket中写入(读取)数据，如果用在已经建立连接的socket上，需要忽略其地址和地址长度参数，
+//即地址指针设置为NULL，地址长度设置为0；如udp，如果不调用connec建立连接，则需要指定地址参数，
+//如果调用connect建立了连接，则省略地址参数
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
                       const struct sockaddr *dest_addr, socklen_t addrlen){
     return do_io(sockfd, sendto_f, "sendto", sylar::IOManager::WRITE, SO_SNDTIMEO, buf, len, flags, dest_addr, addrlen);
 }
 
+//用于向socket文件描述符中写入多个缓冲区的数据，
+//用于向多个缓冲区读取socket文件描述符中的数据，发送(接收)前需要构造msghdr消息头
 ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags){
     return do_io(sockfd, sendmsg_f, "sendmsg", sylar::IOManager::WRITE, SO_SNDTIMEO, msg, flags);
 }
 
+//一个套接字的默认行为是把套接字标记为已关闭，然后立即返回到调用进程，该套接字描述符不能再由调用进程使用，
+//也就是说它不能再作为read或write的第一个参数，然而TCP将尝试发送已排队等待发送到对端，
+//发送完毕后发生的是正常的TCP连接终止序列
 int close(int fd){
     if(!sylar::t_hook_enable){
         return close_f(fd);
@@ -372,10 +413,13 @@ int close(int fd){
     return close_f(fd);
 }
 
+//可以用于对已打开的文件描述符进行各种控制操作，包括复制、设置标志、非阻塞操作等
+//主要用于对文件描述符进行操作和控制
+//复制文件描述符：使用F_DUPFD或F_DUPFD_CLOEXEC参数。
+//设置文件状态标志：使用F_SETFL参数，如设置非阻塞模式O_NONBLOCK。
+//获取/设置记录锁：使用F_GETLK、F_SETLK或F_SETLKW参数。
+//获取/设置异步I/O所有权：使用F_GETOWN、F_SETOWN参数。
 int fcntl(int fd, int cmd, ... /* arg */ ){
-    if(!sylar::t_hook_enable){
-        return fcntl_f(fd, cmd);
-    }
     va_list va;
     va_start(va, cmd);
     // cmd共20种类型
@@ -387,7 +431,7 @@ int fcntl(int fd, int cmd, ... /* arg */ ){
                 va_end(va);
                 sylar::Fdctx::ptr ctx = sylar::FdMgr::GetInstance()->get(fd);
                 if(!ctx || ctx->isClose() || !ctx->isSocket()){
-                    return fcntl(fd, cmd, arg);
+                    return fcntl_f(fd, cmd, arg);
                 }
                 ctx->setUserNonblock(arg & O_NONBLOCK);
                 if(ctx->getSysNonblock()){
@@ -396,7 +440,7 @@ int fcntl(int fd, int cmd, ... /* arg */ ){
                 else{
                     arg &= ~O_NONBLOCK;
                 }
-                return fcntl(fd, cmd, arg);
+                return fcntl_f(fd, cmd, arg);
             }
             break;
         case F_GETFL:
@@ -467,6 +511,11 @@ int fcntl(int fd, int cmd, ... /* arg */ ){
     }
 }
 
+//它可用于对设备驱动程序进行各种控制操作，具体行为由命令码指定。每个设备都有自己特定的ioctl命令
+//主要用于对设备进行操作和控制。
+//设置设备参数和配置信息：比如串口通信波特率、终端窗口大小等。
+//控制设备行为和状态：比如打开/关闭终端回显、启动/停止输入输出等。
+//传输数据到底层硬件：比如发送控制指令、读取传感器数据等
 int ioctl(int fd, unsigned long request, ...){
     va_list va;
     va_start(va, request);
@@ -485,11 +534,23 @@ int ioctl(int fd, unsigned long request, ...){
     return ioctl_f(fd, request, arg);
 }
 
+//用于获取任意类型、任意状态套接口的选项当前值，并把结果存入optval
+//sockfd：一个标识套接口的描述字。
+//level：选项定义的级别。例如，支持的级别有SOL_SOCKET、IPPROTO_TCP等。
+//optname：需获取的套接口选项。
+//optval：指针，指向存放所获得选项值的缓冲区。
+//optlen：指针，指向optval缓冲区的长度值。
 int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen){
     // 不需要hook
     return getsockopt_f(sockfd, level, optname, optval, optlen);
 }
 
+//用于任意类型、任意状态套接口的设置选项值.
+//sockfd：标识一个套接口的描述字;
+//level：选项定义的层次；支持SOL_SOCKET、IPPROTO_TCP;
+//optname：需获取的套接口选项;
+//optval：指针，指向存放所获得选项值的缓冲区;
+//optlen：指针，指向optval缓冲区的长度值;
 int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen){
     if(!sylar::t_hook_enable){
         return setsockopt_f(sockfd, level, optname, optval, optlen);
