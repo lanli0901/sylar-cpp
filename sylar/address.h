@@ -65,7 +65,8 @@ private:
 class IPv6Address : public IPAddress{
 public:
     typedef std::shared_ptr<IPv6Address> ptr;
-    IPv6Address(uint32_t address = INADDR_ANY, uint32_t port = 0);
+    IPv6Address();
+    IPv6Address(const char* address = INADDR_ANY, uint32_t port = 0);
 
     const sockaddr* getAddr() const override;
     socklen_t getAddrLen() const override;
@@ -84,6 +85,7 @@ private:
 class UnixAddress : public Address{
 public:
     typedef std::shared_ptr<UnixAddress> ptr;
+    UnixAddress();
     UnixAddress(const std::string& path);
 
     const sockaddr* getAddr() const override;
@@ -98,7 +100,7 @@ private:
 class UnknowAddress : public Address{
 public:
     typedef std::shared_ptr<UnknowAddress> ptr;
-    UnknowAddress();
+    UnknowAddress(int family);
 
     const sockaddr* getAddr() const override;
     socklen_t getAddrLen() const override;
