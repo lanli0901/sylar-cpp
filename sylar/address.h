@@ -8,20 +8,47 @@
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <iostream>
+#include <vector>
+#include <map>
 
 namespace sylar{
 
+class IPAddress;
 class Address {
 public:
     typedef std::shared_ptr<Address> ptr;
+
+    // 通过sockaddr指针创建Address
+    static Address::ptr Create(const sockaddr* addr, socklen_t addrlen);
+    // 通过host地址返回对应条件的所有Address
+    static bool Lookup(std::vector<Address::ptr>& result, const std::string& host, int family = AF_UNSPEC,
+            int type = 0, int protocol = 0);
+    // 通过host地址返回对应条件的任意Address
+    static Address::ptr LookupAny(const std::string& host, int family = AF_UNSPEC,
+            int type = 0, int protocol = 0);
+    // 通过host地址返回对应条件的任意IPAddress
+    static std::shared_ptr<IPAddress> LookupAnyIPAddress(const std::string& host, int family = AF_UNSPEC,
+            int type = 0, int protocol = 0);
+
+    // 返回本机所有网卡的<网卡名, 地址, 子网掩码位数>
+    static bool GetInterfaceAddress(std::multimap<std::string, std::pair<Address::ptr, uint32_t>>& result,
+            int family = AF_UNSPEC);
+    // 获取指定网卡的地址和子网掩码位数
+    static bool GetInterfaceAddress(std::vector<std::pair<Address::ptr, uint32_t>>& result,
+            const std::string& iface, int family = AF_UNSPEC);
+
     virtual ~Address() {}
 
+    // 返回协议簇
     int getFamily() const;
 
+    // 返回sockaddr指针,只读
     virtual const sockaddr* getAddr() const = 0;
+    // 返回sockaddr的长度
     virtual socklen_t getAddrLen() const = 0;
 
-    virtual std::ostream& insert(std::ostream& os) const;
+    // 可读性输出地址
+    virtual std::ostream& insert(std::ostream& os) const = 0;
     std::string toString();
 
     bool operator<(const Address& rhs) const;
@@ -34,8 +61,14 @@ class IPAddress : public Address{
 public:
     typedef std::shared_ptr<IPAddress> ptr;
 
+    //  通过域名,IP,服务器名创建IPAddress
+    static IPAddress::ptr Create(const char* address, uint32_t port = 0);
+
+    // 获取该地址的广播地址
     virtual IPAddress::ptr broadcastAddress(uint32_t prefix_len) = 0;
+    // 获取该地址的网段
     virtual IPAddress::ptr networkAddress(uint32_t prefix_len) = 0;
+    // 获取子网掩码地址
     virtual IPAddress::ptr subnetAddress(uint32_t prefix_len) = 0;
 
     virtual uint32_t getPort() const = 0;
@@ -45,6 +78,10 @@ public:
 class IPv4Address : public IPAddress{
 public:
     typedef std::shared_ptr<IPv4Address> ptr;
+
+    static IPv4Address::ptr Create(const char* address, uint32_t port = 0);
+
+    IPv4Address(const sockaddr_in& address);
     IPv4Address(uint32_t address = INADDR_ANY, uint32_t port = 0);
 
     const sockaddr* getAddr() const override;
@@ -65,8 +102,12 @@ private:
 class IPv6Address : public IPAddress{
 public:
     typedef std::shared_ptr<IPv6Address> ptr;
+
+    static IPv6Address::ptr Create(const char* address = INADDR_ANY, uint32_t port = 0);
+    
     IPv6Address();
-    IPv6Address(const char* address = INADDR_ANY, uint32_t port = 0);
+    IPv6Address(const sockaddr_in6& address);
+    IPv6Address(const uint8_t address[16], uint32_t port = 0);
 
     const sockaddr* getAddr() const override;
     socklen_t getAddrLen() const override;
@@ -101,7 +142,7 @@ class UnknowAddress : public Address{
 public:
     typedef std::shared_ptr<UnknowAddress> ptr;
     UnknowAddress(int family);
-
+    UnknowAddress(const sockaddr& addr);
     const sockaddr* getAddr() const override;
     socklen_t getAddrLen() const override;
     std::ostream& insert(std::ostream& os) const override;
