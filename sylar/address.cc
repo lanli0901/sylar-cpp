@@ -16,7 +16,7 @@ static T CreateMask(uint32_t bits){
     return (1 << (sizeof(T) * 8 - bits)) - 1;
 }
 
-// 计算value中有多少个 1 （！！！巧妙！！！）
+// 计算掩码的位数（可以计算value中有多少个 1） （！！！巧妙！！！）
 template<class T>
 static uint32_t CountBytes(T value){
     uint32_t result = 0;
@@ -102,6 +102,7 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
     next = results;
     while(next){
         result.push_back(Create(next->ai_addr, (socklen_t)next->ai_addrlen));
+        // SYLAR_LOG_INFO(g_logger) << ((sockaddr_in*)next->ai_addr)->sin_addr.s_addr;
         next = next->ai_next;
     }
     freeaddrinfo(results);
